@@ -1,0 +1,34 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+# Create virtual box centos/7, assign IP, set hostname, set 1GB ram, 1 cpu
+Vagrant.configure("2") do |config|
+  config.vm.box = "centos/7"
+  config.vm.network "private_network", ip: "192.168.10.102"
+  config.vm.hostname = "worker2.kube.node"
+
+  config.vm.provider "virtualbox" do |vb|
+      vb.name = "worker2.kube.node"
+      vb.cpus = 1
+      vb.memory = "512"
+  end
+  
+  # Startup script install-docker-kube.sh
+  config.vm.provision "shell", path: "./../install-docker-kube.sh"
+
+  # Run shell
+  config.vm.provision "shell", inline: <<-SHELL
+    # Set root pass 12345678 and allow SSH
+    echo "12345678" | passwd --stdin root
+    sed -i 's/^PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
+    systemctl reload sshd
+
+# Edit file /etc/hosts to access by HOSTNAME
+cat >>/etc/hosts<<EOF
+192.168.10.100 master.kube.node
+192.168.10.101 worker1.kube.node
+192.168.10.102 worker2.kube.node
+EOF
+
+  SHELL
+end
