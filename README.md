@@ -229,4 +229,157 @@ kubectl get hpa -o wide
 Để linh loạt và quy chuẩn, nên tạo ra HPA (HorizontalPodAutoscaler) từ cấu hình file yaml
 kubectl apply -f 2.hpa.yaml
 
+Deployment quản lý một nhóm các Pod - các Pod được nhân bản, nó tự động thay thế các Pod bị lỗi, không phản hồi bằng pod mới nó tạo ra. Như vậy, deployment đảm bảo ứng dụng của bạn có một (hay nhiều) Pod để phục vụ các yêu cầu.
+Apply deployment:
+kubectl apply -f 1.myapp-deploy.yaml
 
+kiểm tra deployment:
+kubectl get deploy -o wide
+
+Deploy này quản sinh ra một ReplicasSet và quản lý nó, gõ lệnh sau để hiện thị các ReplicaSet
+kubectl get rs -o wide
+
+Edit deploy app:
+kubectl edit deploy/deployapp
+
+Có thể thu hồi lại bản cập nhật bằng cách sử dụng lệnh 
+kubectl rollout undo
+
+Cập nhật image mới trong POD - ví dụ thay image của container node bằng image mới httpd
+
+kubectl set image deploy/deployapp node=httpd --record
+Để xem quá trình cập nhật của deployment
+
+kubectl rollout status deploy/deployapp
+Khi cập nhật, ReplicaSet cũ sẽ hủy và ReplicaSet mới của Deployment được tạo, tuy nhiên ReplicaSet cũ chưa bị xóa để có thể khôi phục lại về trạng thái trước (rollback).
+
+Bạn cũng có thể cập nhật tài nguyên POD theo cách tương tự, ví dụ giới hạn CPU, Memory cho container với tên app-node
+
+kubectl set resources deploy/deployapp -c=node --limits=cpu=200m,memory=200Mi
+
+Kiểm tra các lần cập nhật (revision)
+
+kubectl rollout history deploy/deployapp
+
+Để xem thông tin bản cập nhật 1 thì gõ lệnh
+
+kubectl rollout history deploy/deployapp --revision=1
+Khi cần quay lại phiên bản cũ nào đó, ví dụ bản revision 1
+
+kubectl rollout undo deploy/deployapp --to-revision=1
+Nếu muốn quay lại bản cập nhật trước gần nhất
+
+kubectl rollout undo deploy/mydeploy
+
+Scale thay đổi chỉ số replica (số lượng POD) của Deployment, ý nghĩa tương tự như scale đối với ReplicaSet trong phần trước. Ví dụ để scale với 10 POD thực hiện lệnh:
+
+kubectl scale deploy/deployapp --replicas=10
+Muốn thiết lập scale tự động với số lượng POD trong khoảng min, max và thực hiện scale khi CPU của POD hoạt động ở mức 50% thì thực hiện
+
+kubectl autoscale deploy/deployapp --min=2 --max=5 --cpu-percent=50
+Bạn cũng có thể triển khai Scale từ khai báo trong một yaml. Hoặc có thể trích xuất scale ra để chỉnh sửa
+
+kubectl get hpa/deployapp -o yaml > 2.hpa.yaml
+
+Các POD được quản lý trong Kubernetes, trong vòng đời của nó chỉ diễn ra theo hướng - được tạo ra, chạy và khi nó kết thúc thì bị xóa và khởi tạo POD mới thay thế. ! Có nghĩa ta không thể có tạm dừng POD, chạy lại POD đang dừng ...
+
+Mặc dù mỗi POD khi tạo ra nó có một IP để liên lạc, tuy nhiên vấn đề là mỗi khi POD thay thế thì là một IP khác, nên các dịch vụ truy cập không biết IP mới nếu ta cấu hình nó truy cập đến POD nào đó cố định. Để giải quết vấn đề này sẽ cần đến Service.
+
+Service (micro-service) là một đối tượng trừu tượng nó xác định ra một nhóm các POD và chính sách để truy cập đến POD đó. Nhóm cá POD mà Service xác định thường dùng kỹ thuật Selector (chọn các POD thuộc về Service theo label của POD). Cũng có thể hiểu Service là một dịch vụ mạng, tạo cơ chế cân bằng tải (load balancing) truy cập đến các điểm cuối (thường là các Pod) mà Service đó phục vụ.
+
+apply service 
+kubectl apply -f 1.svc1.yaml
+
+File trên khai báo một service đặt tên svc1, kiểu của service là ClusterIP, đây là kiểu mặc định (ngoài ra còn có kiểu NodePort, LoadBalancer, ExternalName), phần khai báo cổng gồm có cổng của service (port) tương ứng ánh xạ vào cổng của endpoint (targetPort - thường là cổng Pod).
+
+# lấy các service
+kubectl get svc -o wide
+
+# xem thông tin của service svc1
+kubectl describe svc/svc1
+
+kubeDNS: phân giải tên service thành các địa chỉ ip
+
+Service trên có tên svc1, không có selector để xác định các Pod là endpoint của nó, nên có thể tự tạo ra một endpoint cùng tên svc1
+kubectl apply -f 2.endpoint.yaml
+
+```bash
+kubectl describe svc/svc1
+
+Name:              svc1
+Namespace:         default
+Labels:            <none>
+Annotations:       kubectl.kubernetes.io/last-applied-configuration: ...
+Selector:          <none>
+Type:              ClusterIP
+IP:                10.97.217.42
+Port:              port1  80/TCP
+TargetPort:        80/TCP
+Endpoints:         216.58.220.195:80
+Session Affinity:  None
+Events:            <none>
+```
+
+Như vậy svc1 đã có endpoints, khi truy cập svc1:80 hoặc svc1.default:80 hoặc 10.97.217.42:80 có nghĩa là truy cập 216.58.220.195:80
+
+list các endpoints:
+kubectl get endpoints
+
+Triển khai trên Cluster 2 POD chạy độc lập, các POD đó đều có nhãn app: app1
+kubectl apply -f 3.pods.yaml
+Nó tạo ra 2 POD myapp1 (192.168.41.147 chạy nginx) và myapp2 (192.168.182.11 chạy httpd), chúng đều có nhãn app=app1
+Tiếp tục tạo ra service có tên svc2 có thêm thiết lập selector chọn nhãn app=app1
+```bash
+kubectl apply -f 4.svc2.yaml
+kubectl describe svc/svc2
+Name:              svc2
+Namespace:         default
+Labels:            <none>
+Annotations:       kubectl.kubernetes.io/last-applied-configuration: ...
+Selector:          app=app1
+Type:              ClusterIP
+IP:                10.100.165.105
+Port:              port1  80/TCP
+TargetPort:        80/TCP
+Endpoints:         192.168.182.11:80,192.168.41.147:80
+Session Affinity:  None
+Events:            <none>
+```
+
+truy cập endpoint bằng:
+kubectl exec -it tools bash (pods/3.tools.yaml)
+curl svc2:80
+
+NodePort tạo ra có thể truy cập từ ngoài internet bằng IP của các Node, ví dụ sửa dịch vụ svc2 trên thành dịch vụ svc3 kiểu NodePort:
+kubectl appy -f 5.svc3.yaml
+Trong file trên, thiết lập kiểu với type: NodePort, lúc này Service tạo ra có thể truy cập từ các IP của Node với một cổng nó ngẫu nhiên sinh ra trong khoảng 30000-32767. Nếu muốn ấn định một cổng của Service mà không để ngẫu nhiên thì dùng tham số nodePort như trên.Sau khi triển khai có thể truy cập với IP là địa chỉ IP của các Node và cổng là 31080, ví dụ 172.16.10.101:31080
+
+# Ví dụ ứng dụng Service, Deployment, Secret
+## 1. Xây dựng một image mới từ image cơ sở nginx rồi đưa lên registry Hub Docker đặt tên là ichte/swarmtest:nginx
+thiết lập Service - svc\nginx\nginx.conf lắng nghe yêu cầu gửi đến cổng 80 và 443 (tương ứng với 2 server), thư mục gốc làm việc mặc định của chúng là /usr/share/nginx/html, tại đây sẽ copy và một file index.html
+```bash
+# build image từ Dockerfile, đặt tên image mới là ichte/swarmtest:nginx
+docker build -t ichte/swarmtest:nginx -f Dockerfile .
+# đẩy image lên hub docker
+docker push ichte/swarmtest:nginx
+```
+## 2. Tạo Secret chứa xác thực SSL sử dụng bởi ichte/swarmtest:nginx
+Xác thực SSL gồm có server certificate và private key, đối với nginx cấu hình qua hai thiết lập ssl_certificate và ssl_certificate_key tương ứng ta đã cấu hình là hai file tls.crt, tls.key. Ta để tên này vì theo cách đặt tên của letsencrypt.org, sau này bạn có thể thận tiện hơn nếu xin xác thực miễn phí từ đây.
+Thực hiện lệnh sau để sinh file tự xác thực
+```bash
+openssl req -nodes -newkey rsa:2048 -keyout tls.key  -out ca.csr -subj "/CN=xuanthulab.net"
+openssl x509 -req -sha256 -days 365 -in ca.csr -signkey tls.key -out tls.crt
+```
+Đến đây có 2 file tls.key và tls.crt
+Thi hành lệnh sau để tạo ra một Secret (loại ổ đĩa chứa các thông tin nhạy cảm, nhỏ), Secret này kiểu tls, tức chứa xác thức SSL
+```bash
+kubectl create secret tls secret-nginx-cert --cert=certs/tls.crt  --key=certs/tls.key
+```
+Secret này tạo ra thì mặc định nó đặt tên file là tls.crt và tls.key có thể xem với lệnh:
+kubectl describe secret/secret-nginx-cert
+
+## 3. Tạo deployment chạy/quản lý các POD có chạy ichte/swarmtest:nginx
+## 4. Tạo Service kiểu NodePort để truy cập đến các POD trên
+kubectl apply -f example\Service - svc\6.nginx.yaml
+
+Giờ có thể truy cập từ địa chỉ IP của Node với cổng tương ứng (Kubernetes Docker thì http://localhost:31080 và https://localhost:31443)
