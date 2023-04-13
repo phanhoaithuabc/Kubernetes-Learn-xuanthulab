@@ -383,3 +383,16 @@ kubectl describe secret/secret-nginx-cert
 kubectl apply -f example\Service - svc\6.nginx.yaml
 
 Giờ có thể truy cập từ địa chỉ IP của Node với cổng tương ứng (Kubernetes Docker thì http://localhost:31080 và https://localhost:31443)
+
+Headless Service
+Các Service trước bạn tạo nó có một địa chỉ IP riêng của Service, nó dùng cơ chế cân bằng tải để liên kết với các POD. Tuy nhiên nếu nuốn không dùng cơ chế cân bằng tải, mỗi lần truy cập tên Service nó truy cập thẳng tới IP của PO thì dùng loại Headless Service.
+Một Headless Service (Service không IP) nó liên kết thẳng với IP của POD, có nghĩa bạn sẽ không tương tác trực tiếp với POD qua proxy. Tạo loại Service này giống như Service khác, chỉ việc thiết lập thêm .spec.clusterIP có giá trị None
+kubectl apply -f 1-headless-svc.yaml
+# ds service
+kubectl get svc -o wide
+
+triên khai một Deploy tạo POD có nhãn trên: app=test-app
+kubectl apply -f 2-deploy-test-app.yaml
+
+Bạn có thể vào một Container trong hệ thống Kubernetes, thức hiện lệnh ping đến Service headless (một lần trả về IP của POD chứ không có IP service như trước), hoặc dùng lệnh nslook để phân giải tên headless là những IP nào.
+<img src="images/kubernetes044.png">
