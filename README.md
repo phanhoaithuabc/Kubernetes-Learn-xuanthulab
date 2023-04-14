@@ -383,3 +383,7 @@ kubectl describe secret/secret-nginx-cert
 kubectl apply -f example\Service - svc\6.nginx.yaml
 
 Giờ có thể truy cập từ địa chỉ IP của Node với cổng tương ứng (Kubernetes Docker thì http://localhost:31080 và https://localhost:31443)
+
+check outdated images
+kubectl community-images | grep '❌'
+
