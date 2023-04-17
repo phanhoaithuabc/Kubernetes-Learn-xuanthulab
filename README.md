@@ -396,3 +396,42 @@ kubectl apply -f 2-deploy-test-app.yaml
 
 Bạn có thể vào một Container trong hệ thống Kubernetes, thức hiện lệnh ping đến Service headless (một lần trả về IP của POD chứ không có IP service như trước), hoặc dùng lệnh nslook để phân giải tên headless là những IP nào.
 <img src="images/kubernetes044.png">
+
+DaemonSet (ds) đảm bảo chạy trên mỗi NODE một bản copy của POD. Triển khai DaemonSet khi cần ở mỗi máy (Node) một POD, thường dùng cho các ứng dụng như thu thập log, tạo ổ đĩa trên mỗi Node
+
+kubectl apply -f DeamonSet/1.ds.yaml
+
+# Liệt kê các DaemonSet
+kubectl get ds -o wide
+
+# Liệt kê các POD theo nhãn
+kubectl get pod -o wide -l "app=ds-nginx"
+
+# Chi tiết về ds
+kubectl describe ds/dsapp
+
+# Xóa DaemonSet
+kubectl delete ds/dsapp
+
+Mặc định NODE master của kubernetes không cho triển khai chạy các POD trên nó để an toàn, nếu muốn cho phép tạo Pod trên node Master thì xóa đi taint có tên node-role.kubernetes.io/master
+# xóa taint trên node master.xtl cho phép tạo Pod
+kubectl taint node master.xtl node-role.kubernetes.io/master-
+
+# thêm taint trên node master.xtl ngăn tạo Pod trên nó
+kubectl taint nodes master.xtl node-role.kubernetes.io/master=false:NoSchedule
+
+Job (jobs) có chức năng tạo các POD đảm bảo nó chạy và kết thúc thành công. Khi các POD do Job tạo ra chạy và kết thúc thành công thì Job đó hoàn thành. Khi bạn xóa Job thì các Pod nó tạo cũng xóa theo. Một Job có thể tạo các Pod chạy tuần tự hoặc song song. Sử dụng Job khi muốn thi hành một vài chức năng hoàn thành xong thì dừng lại (ví dụ backup, kiểm tra ...)
+
+Khi Job tạo Pod, Pod chưa hoàn thành nếu Pod bị xóa, lỗi Node ... nó sẽ thực hiện tạo Pod khác để thi hành tác vụ.
+kubectl apply -f 2.job.yaml
+
+# Thông tin job có tên myjob
+kubectl describe job/myjob
+
+CronJob (cj) - chạy các Job theo một lịch định sẵn. Việc lên lịch cho CronJob khai báo giống Cron của Linux.
+
+# Danh sách các CronJob
+kubectl get cj -o wide
+
+# Danh sách các Job
+kubectl get jobs -o wide
