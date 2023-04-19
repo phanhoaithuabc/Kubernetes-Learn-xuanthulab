@@ -438,3 +438,33 @@ kubectl get cj -o wide
 
 # Danh sách các Job
 kubectl get jobs -o wide
+
+PersistentVolume (pv) là một phần không gian lưu trữ dữ liệu trong cluster, các PersistentVolume giống với Volume bình thường tuy nhiên nó tồn tại độc lập với POD (pod bị xóa PV vẫn tồn tại), có nhiều loại PersistentVolume có thể triển khai như NFS, Clusterfs ...
+PersistentVolumeClaim (pvc) là yêu cầu sử dụng không gian lưu trữ (sử dụng PV). Hình dung PV giống như Node, PVC giống như POD. POD chạy nó sử dụng các tài nguyên của NODE, PVC hoạt động nó sử dụng tài nguyên của PV.
+<img src="images/kubernetes056.png">
+
+# triển khai
+kubectl apply -f 1.persistent-vol.yaml
+watch kubectl get all,pv,pvc -o wide
+
+# liệt kê các PV
+kubectl get pv -o wide
+
+# thông tin chi tiết
+kubectl describe pv/pv1
+
+# triển khai
+kubectl apply -f 2.persistent-vol-claim.yaml
+
+kubectl get pvc,pv -o wide
+kubectl describe pvc/pvc1
+
+khi xóa pvc (kubectl delete -f 2.persistent-vol-claim.yaml) => pv ở trang thái release => không sử dụng được nữa: khi chúng ta tạo lại pvc (kubectl apply -f 2.persistent-vol-claim.yaml) thì nó sẽ có status pending => muốn sử dụng lại pv1 thì phải sửa manifest yaml của nó (kubectl edit pv/pv1), xóa toàn bộ mục claimRef
+
+<img src="images/kubernetes1.png">
+<img src="images/kubernetes2.png">
+
+Tạo 1 ds "Persistent Volume/3.test.yaml" sử dụng pvc
+kubectl apply -f 3.test.yaml
+kubectl exec -it myapp-djnvs-358uhf sh
+
