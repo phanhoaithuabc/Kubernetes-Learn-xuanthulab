@@ -1,0 +1,29 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: app
+  namespace: ingress-controller
+  # thiết lập thêm
+  annotations:
+    ingress.kubernetes.io/maxconn-server: "7"
+    ingress.kubernetes.io/balance-algorithm: "leastconn"  # thuật toán cân bằng tải source, leastconn, roundrobin
+    ingress.kubernetes.io/timeout-queue: "2m"
+    ingress.kubernetes.io/ssl-redirect: "false"
+
+spec:
+  tls:
+    - hosts:
+      - xuanthulab.test
+      secretName: xuanthulab-test
+
+    # - hosts:
+    #   - otherdomain.coms
+    #   secretName: otherssl-ssl
+  rules:
+  - host: xuanthulab.test
+    http:
+      paths:
+      - path: /
+        backend:
+          serviceName: http-test-svc
+          servicePort: 80

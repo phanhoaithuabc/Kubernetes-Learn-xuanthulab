@@ -468,3 +468,188 @@ Tạo 1 ds "Persistent Volume/3.test.yaml" sử dụng pvc
 kubectl apply -f 3.test.yaml
 kubectl exec -it myapp-djnvs-358uhf sh
 
+# Cài đặt NFS làm Server chia sẻ file (Kubernetes)
+Sử dụng Volume để các POD cùng một dữ liệu, cần một loại đĩa mạng, ví dụ này sẽ thực hành dùng NFS. Ta sẽ cài đặt một Server NFS trực tiếp trên một Node của Kubernetes (độc lập, không chạy POD, nếu muốn bạn có thể cài trên một máy khác chuyên chia sẻ file).
+
+Ta sẽ cài vào Node master (Node này là HDH CentOS 7), vậy hãy SSH vào và thực hiện:
+
+Tham khảo: Cài NFS trên CentOS
+
+yum install nfs-utils
+systemctl enable rpcbind
+systemctl enable nfs-server
+systemctl enable nfs-lock
+systemctl enable nfs-idmap
+systemctl start rpcbind
+systemctl start nfs-server
+systemctl start nfs-lock
+systemctl start nfs-idmap
+
+Tạo (mở) file /etc/exports để soạn thảo, ở đây sẽ cấu hình để chia sẻ thư mục /data/mydata/
+```bash
+vi /etc/exports
+/data/mydata  *(rw,sync,no_subtree_check,insecure)
+```
+Lưu thông lại, và thực hiện
+```bash
+# Tạo thư mục
+mkdir -p /data/mydata
+chmod -R 777 /data/mydata
+
+# export và kiểm tra cấu hình chia sẻ
+exportfs -rav
+exportfs -v
+showmount -e
+
+# Khởi động lại và kiểm tra dịch vụ
+systemctl stop nfs-server
+systemctl start nfs-server
+systemctl status nfs-server
+```
+<img src="images/kubernetes036.png">
+
+Server này có địa chỉ IP 172.16.10.100, giờ vào máy ở Node worker1.xtl (192.168.10.101) thực hiện mount thử ổ đĩa xem có hoạt động không.
+```bash
+ssh root@172.16.10.101
+yum install nfs-utils
+mkdir /home/data
+
+# Gắn ổ đĩa
+mount -t nfs 172.16.10.100:/data/mydata /home/data/
+
+# Kiểm tra xong, hủy gắn ổ đĩa
+umount /home/data
+```
+Như vậy đã có Server chia sẻ file NFS ở địa chỉ IP 192.168.10.100, đường dẫn chia sẻ file /data/data1
+
+# Tạo PersistentVolume NFS
+kubectl apply -f 1-pv-nfs.yaml
+kubectl get pv -o wide
+kubectl describe pv/pv1
+<img src="images/kubernetes037.png">
+
+# Tạo PersistentVolumeClaim NFS
+kubectl apply -f 2-pvc-nfs.yaml
+kubectl get pvc,pv -o wide
+<img src="images/kubernetes039.png">
+
+# Mount PersistentVolumeClaim NFS vào Container
+Ta sẽ triển khai chạy máy chủ web từ image httpd.
+
+SSH vào máy master, vào thư mục chia sẻ /data/mydata tạo một file index.html với nội dung đơn giản, ví dụ:
+
+<h1>Apache is running ...</h1>
+Tạo file triển khai, gồm có POD chạy http và dịch vụ kiểu NodePort, ánh xạ cổng host 31080 vào cổng 80 của POD
+
+Sau khi triển khai, truy cập từ một IP của các node và cổng 31080
+<img src="images/kubernetes040.png">
+Ổ đĩa đã hoạt động chính xác, giờ bạn có thể scale, update dù POD ở đâu thì chúng vẫn truy cập một loại ổ đĩa (đọc, ghi)
+
+# Ingress trong Kubernetes
+Ingress là thành phần được dùng để điều hướng các yêu cầu traffic giao thức HTTP và HTTPS từ bên ngoài (interneet) vào các dịch vụ bên trong Cluster.
+
+Ingress chỉ để phục vụ các cổng, yêu cầu HTTP, HTTPS còn các loại cổng khác, giao thức khác để truy cập được từ bên ngoài thì dùng Service với kiểu NodePort và LoadBalancer
+
+Để Ingress hoặt động, hệ thồng cần một điều khiển ingress trước (Ingress controller), có nhiều loại để chọn sử dụng (tham khảo [Ingress Controller](https://kubernetes.io/docs/concepts/services-networking/ingress-controllers/#additional-controllers))
+Nếu chọn Ngix Ingress Controller thì cài đặt theo: [NGINX Ingress Controller for Kubernetes](https://github.com/nginxinc/kubernetes-ingress).
+
+Phần này, chọn loại HAProxy Ingress Controller - [HAProxy Ingress Controller](https://www.haproxy.com/documentation/hapee/1-9r1/traffic-management/kubernetes-ingress-controller/)
+<img src="images/kubernetes047.png">
+
+# Cài đặt HAProxy Ingress Controller
+Ở đậy sử dụng bản custome là [HAProxy Ingress](https://haproxy-ingress.github.io/)
+```bash
+# Tạo namespace có tên ingress-controller
+kubectl create ns ingress-controller
+```
+
+Triển khai các thành phần
+```bash
+kubectl apply -f https://haproxy-ingress.github.io/resources/haproxy-ingress.yaml
+```
+
+Thực hiện đánh nhãn các Node có thể chạy POD Ingress
+```bash
+# Gán thêm label cho các Node (ví dụ node worker2.xtl, worker1.xtl ...)
+kubectl label node master.xtl role=ingress-controller
+kubectl label node worker1.xtl role=ingress-controller
+kubectl label node worker2.xtl role=ingress-controller
+```
+Kiểm tra các thành phần
+kubectl get all -n ingress-controller
+<img src="images/kubernetes048.png">
+
+Giờ các tên miên, trỏ tới các IP của Node trong Cluster đã được điều khiển bởi Haproxy, ví dụ cấu hình một tên miền ảo (chính file /etc/hosts (Linux, macoS) hoặc C:\Windows\System32\Drivers\etc\hosts (Windows), thêm vào tên miền ảo, giả sử phanhoaithu.test trỏ tới IP của một NODE nào đó
+
+172.16.10.102 phanhoaithu.test
+Giờ truy cập địa chỉ http://phanhoaithu.test sẽ thấy
+<img src="images/kubernetes049.png">
+Vì tên miền xuanthulab.test chưa được cấu hình đến dịch vụ cụ thể nào, nó đã chuyển traffic do service/ingress-default-backend phục vụ.
+
+# Tạo một Ingress
+Triển khai một ứng dụng (http) ví dụ
+kubectl apply -f 1.app-test.yaml
+
+File trên triển khai một ứng dụng từ image nginx, trong đó có tạo một service với tên http-test-svc để tương tác với các POD tạo ra.
+Giờ ta sẽ tạo một Ingress để điều hướng traffic (http, https) vào dịch vụ này.
+
+# Tạo Ingress
+kubectl apply -f 2.app-test-ingress.yaml
+Giờ kiểm truy cập lại sẽ thấy:
+<img src="images/kubernetes050.png">
+
+# Tạo một Ingress với cấu hình SSL
+Để cấu hình truy cập an toàn SSL, cần có các xác thực - các cert bạn mua, hoặc đăng ký miễn phí với https://letsencrypt.org/ cho tên miền cụ thể của bạn. Tuy nhiên để thực hành, sẽ sinh cert với openssl (tự xác thực - bị cảnh báo bởi trình duyệt).
+
+Chạy lệnh sau để sinh xác thực cho tên miền ảo xuanthulab.test:
+openssl req -x509 -newkey rsa:2048 -nodes -days 365 -keyout privkey.pem -out fullchain.pem -subj '/CN=xuanthulab.test'
+
+Sau đó tạo một Secret (thuộc namespace chạy POD), đặt tên Secret này là xuanthulab-test
+kubectl create secret tls xuanthulab-test --cert=fullchain.pem --key=privkey.pem -n ingress-controller
+kubectl get secret -n ingress-controller
+
+Xóa đi Ingress cũ
+kubectl delete -f 2.app-test-ingress.yaml
+Tạo lại một Ingress có thiết lập xác thực SSL với cert trên:
+kubectl apply -f 3.app-test-ingress-ssl.yaml
+Giờ bạn đã có thể truy cập tới https://xuanthulab.test
+
+# NGINX Kubernetes Ingress Controller 
+là một ingress hỗ trợ khả năng căn bằng tải, SSL, URI rewrite ...
+
+Ingress Controller được cung cấp bởi Nginx là một proxy nổi tiếng, mã nguồn của Nginx Ingress Controller trên github tại: [nginxinc/kubernetes-ingress](https://github.com/nginxinc/kubernetes-ingress)
+Hướng dẫn cài đặt cơ bản trên Document của nó tại: [installation-with-manifests](https://docs.nginx.com/nginx-ingress-controller/installation/installation-with-manifests/)
+<img src="images/kubernetes057.png">
+
+# Cài đặt NGINX Ingress Controller
+Xóa ingress-controller đã cài ở bước trước: kubectl delete ns ingress-controller
+Từ tài liệu hướng dẫn, sẽ triển khai Nginx Ingress Controller bằng cách triển khai các manifest (yaml) từ mã nguồn tại nginxinc/kubernetes-ingress:
+```bash
+git clone git@github.com:nginxinc/kubernetes-ingress.git
+# vào thư mục tải về
+cd kubernetes-ingress
+cd deployments
+```
+Sau đó triển khai bằng các lệnh sau:
+
+kubectl apply -f common/ns-and-sa.yaml
+kubectl apply -f common/default-server-secret.yaml
+kubectl apply -f common/nginx-config.yaml
+kubectl apply -f rbac/rbac.yaml
+kubectl apply -f daemon-set/nginx-ingress.yaml
+Kiểm tra daemonset và các pod của Nginx Ingress Controller
+
+kubectl get ds -n nginx-ingress
+kubectl get po -n nginx-ingress
+<img src="images/kubernetes058.png">
+
+# Ví dụ tạo Ingress
+Triển khai lại các vị dụ có trong phần Ví dụIngress Haproxy, nhưng chỉnh sửa lại một chút để dùng Nginx Ingress Controller
+kubectl  apply -f 1.app-test.yaml
+Tạo Ingress, chuyển hướng truy vấn vào ứng dụng trên khi truy cập bằng tên miền xuanthulab.test với giao thức http
+kubectl apply -f 2.app-test-ingress.yaml
+
+Hãy truy cập và kiểm tra từ trình duyệt đến địa chỉ http://xuanthulab.test
+
+Triển khai SSL truy cập bằng https, ở đây sử dụng chính các xác thực lưu trong Secret có tên default-server-secret, đi kèm Nginx Ingress Controller (hoặc tự tạo theo ví dụ trước).
+<img src="images/kubernetes058.png">
