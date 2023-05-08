@@ -687,3 +687,13 @@ Trước khi thêm cần đảm bảo tất cả các node của Cluster đều 
 Từ Rancher, chọn Clusters > Add Cluster, màn hình xuất hiện như dưới. Tùy thuộc vào Cluster triển khai từ dịch vụ nào thì chọn mục tương ứng, ví dụ Amazon EC2, Azure, GKE ..., với Cluster đã triển khai trên, sẽ chọn Import an existing cluster
 <img src="images/kubernetes063.png">
 Cuối cùng là màn hình nó cung cấp các mã lệnh cần thực hiện tại Cluster bằng lệnh kubectl để kết nối.
+
+ssh into flux pod to edit ssh known host (/etc/ssh/ssh_known_host)
+kubectl exec -it flux-58c6c74ff6-dphfq -n flux bash
+
+explore log of flux namespace
+kubectl logs -f -l 'name=flux' -n flux --tail=200
+
+kubectl get deploy -n monitoring prometheus-operator-kube-state-metrics -o yaml > prometheus-operator-kube-state-metrics.yaml
+
+kubectl edit deploy -n monitoring prometheus-operator-kube-state-metrics -o yaml
