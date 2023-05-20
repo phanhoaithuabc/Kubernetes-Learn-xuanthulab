@@ -1,70 +1,54 @@
 # Learn Kubernetes
 
-prequistist
-virtualbox
+## Prequistist
+> virtualbox
+```bash
+chmode +x kubenetes-cluster-debian/install-docker-kube.sh
 
-chmode +x install-docker-kube.sh
-Tại thư mục kubernetes-centos7/master/ gõ lệnh vagrant để tạo máy master.xtl
+# create master.xtl
+cd kubenetes-cluster-debian/master
 vagrant up
-
-Gõ lệnh sau để khở tạo là nút master của Cluster
+```
+## Init node and config
+```bash
+# init master node
 kubeadm init --apiserver-advertise-address=172.16.10.100 --pod-network-cidr=192.168.0.0/16
 
-Sau khi lệnh chạy xong, chạy tiếp cụm lệnh nó yêu cầu chạy sau khi khởi tạo- để chép file cấu hình đảm bảo trình kubectl trên máy này kết nối Cluster
+# copy config file to ensure kubectl on local connect to cluster
 mkdir -p $HOME/.kube
 sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
 sudo chown $(id -u):$(id -g) $HOME/.kube/config
 
-Tiếp đó, nó yêu cầu cài đặt một Plugin mạng trong các Plugin tại addon, ở đây đã chọn calico, nên chạy lệnh sau để cài nó
+# install network plugin (calico)
 kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.25.1/manifests/tigera-operator.yaml
 kubectl create -f https://raw.githubusercontent.com/projectcalico/calico/v3.25.1/manifests/custom-resources.yaml
 
-Cấu hình kubectl máy trạm truy cập đến các Cluster
-để xem nội dung cấu hình kubectl gõ lệnh
+# view config
 kubectl config view
 
-Giờ bạn sẽ thực hiện kết hợp 2 file: config và config-mycluster thành 1 và lưu trở lại config.
+# combine 2 file: config, config-mycluster into 1 and save config
 export KUBECONFIG=~/.kube/config:~/.kube/config-mycluster-1
 kubectl config view --flatten > ~/.kube/config_temp
 mv ~/.kube/config_temp ~/.kube/config
 
-# Các ngữ cảnh hiện có trong config
+# get context in config
 kubectl config get-contexts
 
-Ký hiệu * là cho biết context hiện tại, nếu muốn chuyển làm việc sang context có tên kubernetes-admin@kubernetes (nối với cluster mới tạo ở trên) thì gõ lệnh
+# switch context
 kubectl config use-context kubernetes-admin@kubernetes
-
-Kết nối Node vào Cluster
+```
+## Join worker into master
+```bash
+# connect Node into Cluster
 kubeadm token create --print-join-command
 
-# node worker kết nối vào Cluster
+# node worker join into Cluster
 kubeadm join 172.16.10.100:6443 --token 5ajhhs.atikwelbpr0 ...
+```
 
-# Lấy thông tin Cluster
-kubectl cluster-info
-
-# Các Node có trong Cluster
-kubectl get nodes
-kubectl get node -o wide
-
-# Muốn lấy manifest mô tả thông tin tài nguyên
-kubectl get node -o yaml
-kubectl get pod/ungdung1 -o yaml
-
-# Các pod đang chạy trong tất cả các namespace
-kubectl get pods -A
-
-# describe node
-kubectl describe node/worker1.kube.node
-node master thì có lable là: node-role.kubernetes.io/master=
-
-# gán nhãn cho 1 node:
-kubectl label node worker.kube.node nodeabc=ungdungpython
-lấy ra node có 1 nhãn mà mình chỉ định:
-kubectl get node -l "nodeabc=ungdungpython"
-xóa 1 label: kubectl label node worker1.kube.node nodeabc-
-
-# Create dashboard
+## Kubernete dashboard
+```bash
+# create dashboard
 Do cấu hình mặc định của Kubernetes Cluster, cổng được mở ra ngoài phải chọn trong khoảng 30000-32767 sau này bạn có thể sửa cấu hình này với tham số chạy Cluster --service-node-portrange
 
 # apply dashboard
@@ -73,103 +57,147 @@ kubectl apply -f dashboard.yaml
 # check pod trong namespace
 kubectl get pod -n kubernetes-dashboard
 
-Tạo kubernetes-dashboard-certs, xác thực SSL
-Ta sẽ dùng OpenSSL để sinh certificates tự xác thực SSL (ngoài ra khi triển khai thực tế có thể lấy các certificate do mua hoặc miễn phí từ https://letsencrypt.org/ theo Domain), chạy các lệnh sau:
+# create kubernetes-dashboard-certs, xác thực SSL use OpenSSL to create certificates tự xác thực SSL (khi triển khai thực tế có thể lấy các certificate do mua hoặc miễn phí từ https://letsencrypt.org/ theo Domain):
 sudo mkdir certs
 sudo chmod 777 -R certs
 openssl req -nodes -newkey rsa:2048 -keyout certs/dashboard.key -out certs/dashboard.csr -subj "/C=/ST=/L=/O=/OU=/CN=kubernetes-dashboard"
 openssl x509 -req -sha256 -days 365 -in certs/dashboard.csr -signkey certs/dashboard.key -out certs/dashboard.crt
 sudo chmod -R 777 certs
 
-Trên Windows nếu không có lệnh openssl có thể tạo một Image có cài OpenSSL ví dụ Dockerfile sau:
+# on Windows nếu không có lệnh openssl có thể tạo một Image có cài OpenSSL ví dụ Dockerfile sau:
 FROM alpine
-
 RUN apk update && \
   apk add --no-cache openssl && \
   rm -rf /var/cache/apk/*
-
 WORKDIR /
-
 ENTRYPOINT ["openssl"]
 
-Build image đặt tên ví dụ, myopenssl
+# Build image name myopenssl
 docker build -t myopenssl -f Dockerfile .
 
-Sau đó phát sinh cert trên Windows
+# after that create cert on Windows
 mkdir certs
 docker run --rm -v ${PWD}/certs:/certs/ myopenssl req -nodes -newkey rsa:2048 -keyout /certs/dashboard.key -out /certs/dashboard.csr -subj "/C=/ST=/L=/O=/OU=/CN=kubernetes-dashboard"
 docker run --rm -v ${PWD}/certs:/certs/ myopenssl x509 -req -sha256 -days 365 -in /certs/dashboard.csr -signkey /certs/dashboard.key -out /certs/dashboard.crt
 
-Sau khi hoàn thành thì các thông tin certificate lưu ở thư mục certs, chạy lệnh sau để tạo Secret
+# certificate info at folder certs after create, run command to create Secret
 kubectl create secret generic kubernetes-dashboard-certs --from-file=certs -n kubernetes-dashboard
 
-xem secret kubernetes-dashboard
+# watch secret kubernetes-dashboard
 kubectl get secret -n kubernetes-dashboard
 kubectl describe secret kubernetes-dashboard-certs -n kubernetes-dashboard
 
-Giờ truy cập địa chỉ https://192.168.10.100:31000 sẽ vào màn hình đăng nhập
-
-Sau đó chạy lệnh:
+# access https://192.168.10.100:31000 to login page, after that run command:
 kubectl apply -f admin-user.yaml
 
-Tiếp theo chạy lệnh sau để lấy Token
+# run these command to get Token
 kubectl get secret -n kubernetes-dashboard 
 kubectl describe secret/admin-user-token -n kubernetes-dashboard
 
-Copy toàn bộ đoạn Token để đưa vào đăng nhập
+# Copy Token to login
 
-# với docker desktop
+# With docker desktop
 kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/v2.7.0/aio/deploy/recommended.yaml 
 kubectl proxy
 kubectl apply -f create-service-cccount.yaml
 kubectl apply -f create-cluster-role-binding.yaml
 kubectl -n kubernetes-dashboard create token admin-user
+```
 
+## Command check node, pod, label
+```bash
+# get info cluster
+kubectl cluster-info
 
-các lệnh pod
-kubectl get pods	Liệt kê các POD trong namespace hiện tại, thêm tham số -o wide hiện thị chi tiết hơn, thêm -A hiện thị tất cả namespace, thêm -n namespacename hiện thị Pod của namespace namespacename
-kubectl explain pod --recursive=true	Xem cấu trúc mẫu định nghĩa POD trong file cấu hình yaml
-kubectl apply -f firstpod.yaml	Triển khai tạo các tài nguyên định nghĩa trong file firstpod.yaml
-kubectl delete -f firstpod.yaml	Xóa các tài nguyên tạo ra từ định nghĩa firstpod.yaml
-kubectl describe pod/namepod	Lấy thông tin chi tiết POD có tên namepod, nếu POD trong namespace khác mặc định thêm vào tham số -n namespace-name
-kubectl logs pod/podname	Xem logs của POD có tên podname
+# node in Cluster
+kubectl get nodes
+kubectl get node -o wide
 
+# get manifest describe resourse
+kubectl get node -o yaml
+kubectl get pod/ungdung1 -o yaml
+
+# describe node
+kubectl describe node/worker1.kube.node
+# node master have lable: node-role.kubernetes.io/master=
+
+# label for 1 node
+kubectl label node worker.kube.node nodeabc=ungdungpython
+
+# get node have specific lable:
+kubectl get node -l "nodeabc=ungdungpython"
+
+# delete 1 label
+kubectl label node worker1.kube.node nodeabc-
+
+# get all pod in all namespace
+kubectl get pods -A
+
+# get pods in specific namespace
+kubectl get pods -n monitoring
+# -o wide for more detail
+
+# xem cấu trúc mẫu định nghĩa POD trong file cấu hình yaml
+kubectl explain pod --recursive=true
+
+# Triển khai tạo các tài nguyên định nghĩa trong file firstpod.yaml
+kubectl apply -f firstpod.yaml
+
+# Xóa các tài nguyên tạo ra từ định nghĩa firstpod.yaml
+kubectl delete -f firstpod.yaml
+
+# Xóa POD có tên mypod
+kubectl delete pod/mypod -n namespace-name
+
+# Lấy thông tin chi tiết POD có tên namepod
+kubectl describe pod/namepod -n namespace-name 
+
+# Xem logs của POD có tên podname
+kubectl logs pod/podname -n namespace-name
+
+# Chạy lệnh từ container của POD có tên mypod, nếu POD có nhiều container thêm vào tham số -c và tên container, mặc định sẽ vào container thứ 1
 kubectl exec mypod command
-Chạy lệnh từ container của POD có tên mypod, nếu POD có nhiều container thêm vào tham số -c và tên container, mặc định sẽ vào container thứ 1
-vd: kubectl exec ungdung1 ls /
-    kubectl exec -it tools bash
+# vd: kubectl exec ungdung1 ls /
+#     kubectl exec -it tools bash
 
-kubectl exec -it mypod bash	Chạy lệnh bash của container trong POD mypod và gắn terminal
-kubectl proxy	Tạo server proxy truy cập đến các tài nguyên của Cluster. http://localhost/api/v1/namespaces/default/pods/mypod:8085/proxy/, truy cập đến container có tên mypod trong namespace mặc định.
-kubectl delete pod/mypod	Xóa POD có tên mypod
+# chạy lệnh bash của container trong POD mypod và gắn terminal
+kubectl exec -it mypod bash
 
-Triển khai tạo Pod từ file này, thực hiện lệnh sau
-kubectl apply -f 1-swarmtest-node.yaml
-kubectl apply -f 2-nginx.yaml
-kubectl apply -f 3-tools.yaml
-kubectl apply -f 4-nginx-swamtest.yaml
-kubectl apply -f 5-nginx-swamtest-vol.yaml
+# Tạo server proxy truy cập đến các tài nguyên của Cluster. http://localhost/api/v1/namespaces/default/pods/mypod:8085/proxy/, truy cập đến container có tên mypod trong namespace mặc định.
+kubectl proxy
+```
+
+## Example about POD
+```bash
+# tạo Pod từ file này, thực hiện lệnh sau
+kubectl apply -f example/pods/1-swarmtest-node.yaml
+kubectl apply -f example/pods/2-nginx.yaml
+kubectl apply -f example/pods/3-tools.yaml
+kubectl apply -f example/pods/4-nginx-swamtest.yaml
+kubectl apply -f example/pods/5-nginx-swamtest-vol.yaml
 kubectl delete -f example/pods (delete all pod)
-
-Mặc định Kubernetes không tạo và chạy POD ở Node Master để đảm bảo yêu cầu an toàn, nếu vẫn muốn chạy POD ở Master thi hành lệnh sau:
-kubectl taint nodes --all node-role.kubernetes.io/master-
 
 # xem các sự kiện xảy ra trong cluster
 kubectl get event/ev
 
 # chỉnh sửa nôi dung của file manifest của pod:
-kubectl edit po/ungdung1 
+kubectl edit po/ungdung1
+```
+> Mặc định Kubernetes không tạo và chạy POD ở Node Master để đảm bảo yêu cầu an toàn, nếu vẫn muốn chạy POD ở Master thi hành lệnh sau:
+kubectl taint nodes --all node-role.kubernetes.io/master-
 
-Truy cập Pod từ bên ngoài Cluster (Kiểm tra - Debug)
-Trong thông tin của Pod ta thấy có IP của Pod và cổng lắng nghe, tuy nhiên Ip này là nội bộ, chỉ các Pod trong Cluster liên lạc với nhau. Nếu bên ngoài muốn truy cập cần tạo một Service để chuyển traffic bên ngoài vào Pod (tìm hiểu sau), tại đây để debug - truy cập kiểm tra bằng cách chạy proxy:
-kubectl proxy
-Hoặc
-kubectl proxy --address="0.0.0.0" --accept-hosts='^*$'
-Truy cập đến địa chỉ http://localhost/api/v1/namespaces/default/pods/mypod:8085/proxy/
-Khi kiểm tra chạy thử, cũng có thể chuyển cổng để truy cập. Ví dụ cổng host 8080 được chuyển hướng truy cập đến cổng 8085 của POD mypod
-kubectl port-forward mypod 8080:8085
+> Truy cập Pod từ bên ngoài Cluster (Kiểm tra - Debug). Trong thông tin của Pod ta thấy có IP của Pod và cổng lắng nghe, tuy nhiên Ip này là nội bộ, chỉ các Pod trong Cluster liên lạc với nhau. Nếu bên ngoài muốn truy cập cần tạo một Service để chuyển traffic bên ngoài vào Pod (tìm hiểu sau), tại đây để debug - truy cập kiểm tra bằng cách chạy proxy:
+  ```bash
+  kubectl proxy
+  Hoặc
+  kubectl proxy --address="0.0.0.0" --accept-hosts='^*$'
+  # Truy cập đến địa chỉ http://localhost/api/v1/namespaces/default/pods/mypod:8085/proxy/
+  
+  # Khi kiểm tra chạy thử, cũng có thể chuyển cổng để truy cập. Ví dụ cổng host 8080 được chuyển hướng truy cập đến cổng 8085 của POD mypod
+  kubectl port-forward mypod 8080:8085
+  ```
 
-Ổ đĩa / Volume trong POD
+## Disk / Volume in POD
 Để thêm các Volume đầu tiên cần định nghĩa ổ đĩa ở trường spec.volumes. Tại mỗi container gắn ổ đĩa vào nếu cần với thuộc tính volumeMounts
 Nếu muốn sử dụng ổ đĩa - giống nhau về dữ liệu trên nhiều POD, kể cả các POD đó chạy trên các máy khác nhau thì cần dùng các loại đĩa Remote - ví dụ NFS
 
