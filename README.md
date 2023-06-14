@@ -375,7 +375,7 @@ kubectl appy -f "Service - svc/5.svc3.yaml"
 ```
 ## Ví dụ ứng dụng Service, Deployment, Secret
 ### **1. Xây dựng một image mới từ image cơ sở nginx rồi đưa lên registry Hub Docker đặt tên là ichte/swarmtest:nginx**
-thiết lập Service - svc\nginx\nginx.conf lắng nghe yêu cầu gửi đến cổng 80 và 443 (tương ứng với 2 server), thư mục gốc làm việc mặc định của chúng là /usr/share/nginx/html, tại đây sẽ copy và một file index.html
+Thiết lập `Service - svc\nginx\nginx.conf` lắng nghe yêu cầu gửi đến cổng 80 và 443 (tương ứng với 2 server), thư mục gốc làm việc mặc định của chúng là `/usr/share/nginx/html`, tại đây sẽ copy và một file `index.html`
 ```bash
 # build image từ Dockerfile, đặt tên image mới là ichte/swarmtest:nginx
 docker build -t ichte/swarmtest:nginx -f Dockerfile .
@@ -383,48 +383,45 @@ docker build -t ichte/swarmtest:nginx -f Dockerfile .
 docker push ichte/swarmtest:nginx
 ```
 ### **2. Tạo Secret chứa xác thực SSL sử dụng bởi ichte/swarmtest:nginx**
-Xác thực SSL gồm có server certificate và private key, đối với nginx cấu hình qua hai thiết lập ssl_certificate và ssl_certificate_key tương ứng ta đã cấu hình là hai file tls.crt, tls.key. Ta để tên này vì theo cách đặt tên của letsencrypt.org, sau này bạn có thể thận tiện hơn nếu xin xác thực miễn phí từ đây.
-Thực hiện lệnh sau để sinh file tự xác thực
+Xác thực SSL gồm có server certificate và private key, đối với nginx cấu hình qua hai thiết lập `ssl_certificate` và `ssl_certificate_key` tương ứng ta đã cấu hình là hai file `tls.crt, tls.key`. Ta để tên này vì theo cách đặt tên của `letsencrypt.org`, sau này bạn có thể thận tiện hơn nếu xin xác thực miễn phí từ đây.
 ```bash
+# Thực hiện lệnh sau để sinh file tự xác thực
 openssl req -nodes -newkey rsa:2048 -keyout tls.key  -out ca.csr -subj "/CN=xuanthulab.net"
 openssl x509 -req -sha256 -days 365 -in ca.csr -signkey tls.key -out tls.crt
-```
-Đến đây có 2 file tls.key và tls.crt
-Thi hành lệnh sau để tạo ra một Secret (loại ổ đĩa chứa các thông tin nhạy cảm, nhỏ), Secret này kiểu tls, tức chứa xác thức SSL
-```bash
+# Đến đây có 2 file tls.key và tls.crt
+
+# Thi hành lệnh sau để tạo ra một Secret (loại ổ đĩa chứa các thông tin nhạy cảm, nhỏ), Secret này kiểu tls, tức chứa xác thức SSL
 kubectl create secret tls secret-nginx-cert --cert=certs/tls.crt  --key=certs/tls.key
-```
-Secret này tạo ra thì mặc định nó đặt tên file là tls.crt và tls.key có thể xem với lệnh:
+
+# Secret này tạo ra thì mặc định nó đặt tên file là tls.crt và tls.key có thể xem với lệnh:
 kubectl describe secret/secret-nginx-cert
-
-## 3. Tạo deployment chạy/quản lý các POD có chạy ichte/swarmtest:nginx
-## 4. Tạo Service kiểu NodePort để truy cập đến các POD trên
+```
+### **3. Tạo deployment chạy/quản lý các POD có chạy ichte/swarmtest:nginx**
+### **4. Tạo Service kiểu NodePort để truy cập đến các POD trên**
+```bash
 kubectl apply -f example\Service - svc\6.nginx.yaml
+# Giờ có thể truy cập từ địa chỉ IP của Node với cổng tương ứng (Kubernetes Docker thì http://localhost:31080 và https://localhost:31443)
+```
 
-Giờ có thể truy cập từ địa chỉ IP của Node với cổng tương ứng (Kubernetes Docker thì http://localhost:31080 và https://localhost:31443)
-
-check outdated images
-kubectl community-images | grep '❌'
-
-Headless Service
+## Headless Service
 Các Service trước bạn tạo nó có một địa chỉ IP riêng của Service, nó dùng cơ chế cân bằng tải để liên kết với các POD. Tuy nhiên nếu nuốn không dùng cơ chế cân bằng tải, mỗi lần truy cập tên Service nó truy cập thẳng tới IP của PO thì dùng loại Headless Service.
 Một Headless Service (Service không IP) nó liên kết thẳng với IP của POD, có nghĩa bạn sẽ không tương tác trực tiếp với POD qua proxy. Tạo loại Service này giống như Service khác, chỉ việc thiết lập thêm .spec.clusterIP có giá trị None
-kubectl apply -f 1-headless-svc.yaml
-# ds service
-kubectl get svc -o wide
+```bash
+kubectl apply -f "Headless Service/1-headless-svc.yaml"
 
-triên khai một Deploy tạo POD có nhãn trên: app=test-app
-kubectl apply -f 2-deploy-test-app.yaml
-
-Bạn có thể vào một Container trong hệ thống Kubernetes, thức hiện lệnh ping đến Service headless (một lần trả về IP của POD chứ không có IP service như trước), hoặc dùng lệnh nslook để phân giải tên headless là những IP nào.
+# triển khai một Deploy tạo POD có nhãn trên: app=test-app
+kubectl apply -f "Headless Service/2-deploy-test-app.yaml"
+```
+Vào một Container trong hệ thống Kubernetes, thức hiện lệnh ping đến Service headless (một lần trả về IP của POD chứ không có IP service như trước), hoặc dùng lệnh nslook để phân giải tên headless là những IP nào.
 <img src="images/kubernetes044.png">
 
-DaemonSet (ds) đảm bảo chạy trên mỗi NODE một bản copy của POD. Triển khai DaemonSet khi cần ở mỗi máy (Node) một POD, thường dùng cho các ứng dụng như thu thập log, tạo ổ đĩa trên mỗi Node
-
+## DaemonSet (ds)
+Đảm bảo chạy trên mỗi NODE một bản copy của POD. Triển khai DaemonSet khi cần ở mỗi máy (Node) một POD, thường dùng cho các ứng dụng như thu thập log, tạo ổ đĩa trên mỗi Node
+```bash
 kubectl apply -f DeamonSet/1.ds.yaml
 
 # Liệt kê các DaemonSet
-kubectl get ds -o wide
+kubectl get ds -o wide -n name-space
 
 # Liệt kê các POD theo nhãn
 kubectl get pod -o wide -l "app=ds-nginx"
@@ -435,35 +432,39 @@ kubectl describe ds/dsapp
 # Xóa DaemonSet
 kubectl delete ds/dsapp
 
-Mặc định NODE master của kubernetes không cho triển khai chạy các POD trên nó để an toàn, nếu muốn cho phép tạo Pod trên node Master thì xóa đi taint có tên node-role.kubernetes.io/master
-# xóa taint trên node master.xtl cho phép tạo Pod
+# Mặc định NODE master của kubernetes không cho triển khai chạy các POD trên nó để an toàn, nếu muốn cho phép tạo Pod trên node Master thì xóa đi taint có tên node-role.kubernetes.io/master
 kubectl taint node master.xtl node-role.kubernetes.io/master-
 
 # thêm taint trên node master.xtl ngăn tạo Pod trên nó
 kubectl taint nodes master.xtl node-role.kubernetes.io/master=false:NoSchedule
-
+```
 Job (jobs) có chức năng tạo các POD đảm bảo nó chạy và kết thúc thành công. Khi các POD do Job tạo ra chạy và kết thúc thành công thì Job đó hoàn thành. Khi bạn xóa Job thì các Pod nó tạo cũng xóa theo. Một Job có thể tạo các Pod chạy tuần tự hoặc song song. Sử dụng Job khi muốn thi hành một vài chức năng hoàn thành xong thì dừng lại (ví dụ backup, kiểm tra ...)
 
-Khi Job tạo Pod, Pod chưa hoàn thành nếu Pod bị xóa, lỗi Node ... nó sẽ thực hiện tạo Pod khác để thi hành tác vụ.
-kubectl apply -f 2.job.yaml
+Khi Job tạo Pod, Pod chưa hoàn thành nếu Pod bị xóa, lỗi Node... nó sẽ thực hiện tạo Pod khác để thi hành tác vụ.
+```bash
+kubectl apply -f DeamonSet/2.job.yaml
 
 # Thông tin job có tên myjob
 kubectl describe job/myjob
-
+```
 CronJob (cj) - chạy các Job theo một lịch định sẵn. Việc lên lịch cho CronJob khai báo giống Cron của Linux.
-
+```bash
 # Danh sách các CronJob
 kubectl get cj -o wide
 
 # Danh sách các Job
 kubectl get jobs -o wide
+```
+## PersistentVolume (pv)
+Là một phần không gian lưu trữ dữ liệu trong cluster, các PersistentVolume giống với Volume bình thường tuy nhiên nó tồn tại độc lập với POD (pod bị xóa PV vẫn tồn tại), có nhiều loại PersistentVolume có thể triển khai như NFS, Clusterfs...
 
-PersistentVolume (pv) là một phần không gian lưu trữ dữ liệu trong cluster, các PersistentVolume giống với Volume bình thường tuy nhiên nó tồn tại độc lập với POD (pod bị xóa PV vẫn tồn tại), có nhiều loại PersistentVolume có thể triển khai như NFS, Clusterfs ...
-PersistentVolumeClaim (pvc) là yêu cầu sử dụng không gian lưu trữ (sử dụng PV). Hình dung PV giống như Node, PVC giống như POD. POD chạy nó sử dụng các tài nguyên của NODE, PVC hoạt động nó sử dụng tài nguyên của PV.
-<img src="images/kubernetes056.png">
+**PersistentVolumeClaim (pvc)** là yêu cầu sử dụng không gian lưu trữ (sử dụng PV). Hình dung PV giống như Node, PVC giống như POD. POD chạy nó sử dụng các tài nguyên của NODE, PVC hoạt động nó sử dụng tài nguyên của PV.
 
+<img src="images/kubernetes056.jpg"></img>
+
+```bash
 # triển khai
-kubectl apply -f 1.persistent-vol.yaml
+kubectl apply -f "Persistent Volume/1.persistent-vol.yaml"
 watch kubectl get all,pv,pvc -o wide
 
 # liệt kê các PV
@@ -473,27 +474,27 @@ kubectl get pv -o wide
 kubectl describe pv/pv1
 
 # triển khai
-kubectl apply -f 2.persistent-vol-claim.yaml
+kubectl apply -f "Persistent Volume/2.persistent-vol-claim.yaml"
 
 kubectl get pvc,pv -o wide
 kubectl describe pvc/pvc1
+```
+Khi xóa pvc `(kubectl delete -f "Persistent Volume/2.persistent-vol-claim.yaml")` => pv ở trang thái release => không sử dụng được nữa 
 
-khi xóa pvc (kubectl delete -f 2.persistent-vol-claim.yaml) => pv ở trang thái release => không sử dụng được nữa: khi chúng ta tạo lại pvc (kubectl apply -f 2.persistent-vol-claim.yaml) thì nó sẽ có status pending => muốn sử dụng lại pv1 thì phải sửa manifest yaml của nó (kubectl edit pv/pv1), xóa toàn bộ mục claimRef
+Khi chúng ta tạo lại pvc `(kubectl apply -f "Persistent Volume/2.persistent-vol-claim.yaml")` thì nó sẽ có status pending => muốn sử dụng lại pv1 thì phải sửa manifest yaml của nó `(kubectl edit pv/pv1)`, xóa toàn bộ mục claimRef
 
-<img src="images/kubernetes1.png">
-<img src="images/kubernetes2.png">
+<img src="images/kubernetes1.png"></img>
+<img src="images/kubernetes2.png"></img>
 
-Tạo 1 ds "Persistent Volume/3.test.yaml" sử dụng pvc
-kubectl apply -f 3.test.yaml
+Tạo 1 ds **Persistent Volume/3.test.yaml** sử dụng pvc:
+```bash
+kubectl apply -f "Persistent Volume/3.test.yaml"
 kubectl exec -it myapp-djnvs-358uhf sh
-
-# Cài đặt NFS làm Server chia sẻ file (Kubernetes)
+```
+## Cài đặt NFS làm Server chia sẻ file Kubernetes
 Sử dụng Volume để các POD cùng một dữ liệu, cần một loại đĩa mạng, ví dụ này sẽ thực hành dùng NFS. Ta sẽ cài đặt một Server NFS trực tiếp trên một Node của Kubernetes (độc lập, không chạy POD, nếu muốn bạn có thể cài trên một máy khác chuyên chia sẻ file).
-
-Ta sẽ cài vào Node master (Node này là HDH CentOS 7), vậy hãy SSH vào và thực hiện:
-
-Tham khảo: Cài NFS trên CentOS
-
+```bash
+# Ta sẽ cài vào Node master (Node này là HDH CentOS7), vậy hãy SSH vào và thực hiện:
 yum install nfs-utils
 systemctl enable rpcbind
 systemctl enable nfs-server
@@ -504,13 +505,11 @@ systemctl start nfs-server
 systemctl start nfs-lock
 systemctl start nfs-idmap
 
-Tạo (mở) file /etc/exports để soạn thảo, ở đây sẽ cấu hình để chia sẻ thư mục /data/mydata/
-```bash
+# Mở file /etc/exports để soạn thảo, ở đây sẽ cấu hình để chia sẻ thư mục /data/mydata/
 vi /etc/exports
 /data/mydata  *(rw,sync,no_subtree_check,insecure)
-```
-Lưu thông lại, và thực hiện
-```bash
+
+# Lưu thông lại, và thực hiện
 # Tạo thư mục
 mkdir -p /data/mydata
 chmod -R 777 /data/mydata
@@ -525,8 +524,7 @@ systemctl stop nfs-server
 systemctl start nfs-server
 systemctl status nfs-server
 ```
-<img src="images/kubernetes036.png">
-
+<img src="images/kubernetes036.png"></img>
 Server này có địa chỉ IP 172.16.10.100, giờ vào máy ở Node worker1.xtl (192.168.10.101) thực hiện mount thử ổ đĩa xem có hoạt động không.
 ```bash
 ssh root@172.16.10.101
@@ -538,33 +536,34 @@ mount -t nfs 172.16.10.100:/data/mydata /home/data/
 
 # Kiểm tra xong, hủy gắn ổ đĩa
 umount /home/data
-```
-Như vậy đã có Server chia sẻ file NFS ở địa chỉ IP 192.168.10.100, đường dẫn chia sẻ file /data/data1
+
+# Như vậy đã có Server chia sẻ file NFS ở địa chỉ IP `192.168.10.100`, đường dẫn chia sẻ file `/data/data1`
 
 # Tạo PersistentVolume NFS
 kubectl apply -f 1-pv-nfs.yaml
 kubectl get pv -o wide
 kubectl describe pv/pv1
-<img src="images/kubernetes037.png">
-
+```
+<img src="images/kubernetes037.png"></img>
+```bash
 # Tạo PersistentVolumeClaim NFS
 kubectl apply -f 2-pvc-nfs.yaml
 kubectl get pvc,pv -o wide
-<img src="images/kubernetes039.png">
+```
+<img src="images/kubernetes039.png"></img>
 
-# Mount PersistentVolumeClaim NFS vào Container
-Ta sẽ triển khai chạy máy chủ web từ image httpd.
+Mount `PersistentVolumeClaim NFS` vào Container
+Ta sẽ triển khai chạy máy chủ web từ image `httpd`.
 
-SSH vào máy master, vào thư mục chia sẻ /data/mydata tạo một file index.html với nội dung đơn giản, ví dụ:
+SSH vào máy master, vào thư mục chia sẻ `/data/mydata` tạo một file `index.html` với nội dung đơn giản, ví dụ:
 
-<h1>Apache is running ...</h1>
-Tạo file triển khai, gồm có POD chạy http và dịch vụ kiểu NodePort, ánh xạ cổng host 31080 vào cổng 80 của POD
+`<h1>Apache is running ...</h1>`
 
-Sau khi triển khai, truy cập từ một IP của các node và cổng 31080
-<img src="images/kubernetes040.png">
+Tạo file triển khai, gồm có POD chạy http và dịch vụ kiểu NodePort, ánh xạ cổng host 31080 vào cổng 80 của POD. Sau khi triển khai, truy cập từ một IP của các node và cổng 31080:
+<img src="images/kubernetes040.png"></img>
 Ổ đĩa đã hoạt động chính xác, giờ bạn có thể scale, update dù POD ở đâu thì chúng vẫn truy cập một loại ổ đĩa (đọc, ghi)
 
-# Ingress trong Kubernetes
+## Ingress trong Kubernetes
 Ingress là thành phần được dùng để điều hướng các yêu cầu traffic giao thức HTTP và HTTPS từ bên ngoài (interneet) vào các dịch vụ bên trong Cluster.
 
 Ingress chỉ để phục vụ các cổng, yêu cầu HTTP, HTTPS còn các loại cổng khác, giao thức khác để truy cập được từ bên ngoài thì dùng Service với kiểu NodePort và LoadBalancer
@@ -573,96 +572,99 @@ Ingress chỉ để phục vụ các cổng, yêu cầu HTTP, HTTPS còn các lo
 Nếu chọn Ngix Ingress Controller thì cài đặt theo: [NGINX Ingress Controller for Kubernetes](https://github.com/nginxinc/kubernetes-ingress).
 
 Phần này, chọn loại HAProxy Ingress Controller - [HAProxy Ingress Controller](https://www.haproxy.com/documentation/hapee/1-9r1/traffic-management/kubernetes-ingress-controller/)
-<img src="images/kubernetes047.png">
+<img src="images/kubernetes047.png"></img>
 
-# Cài đặt HAProxy Ingress Controller
+### Cài đặt HAProxy Ingress Controller
 Ở đậy sử dụng bản custome là [HAProxy Ingress](https://haproxy-ingress.github.io/)
 ```bash
 # Tạo namespace có tên ingress-controller
 kubectl create ns ingress-controller
-```
 
-Triển khai các thành phần
-```bash
+# Triển khai các thành phần
 kubectl apply -f https://haproxy-ingress.github.io/resources/haproxy-ingress.yaml
 ```
-
-Thực hiện đánh nhãn các Node có thể chạy POD Ingress
+Thực hiện đánh nhãn các Node có thể chạy POD Ingress:
 ```bash
 # Gán thêm label cho các Node (ví dụ node worker2.xtl, worker1.xtl ...)
 kubectl label node master.xtl role=ingress-controller
 kubectl label node worker1.xtl role=ingress-controller
 kubectl label node worker2.xtl role=ingress-controller
-```
-Kiểm tra các thành phần
+
+# Kiểm tra các thành phần
 kubectl get all -n ingress-controller
+```
 <img src="images/kubernetes048.png">
 
-Giờ các tên miên, trỏ tới các IP của Node trong Cluster đã được điều khiển bởi Haproxy, ví dụ cấu hình một tên miền ảo (chính file /etc/hosts (Linux, macoS) hoặc C:\Windows\System32\Drivers\etc\hosts (Windows), thêm vào tên miền ảo, giả sử phanhoaithu.test trỏ tới IP của một NODE nào đó
+Giờ các tên miền, trỏ tới các IP của Node trong Cluster đã được điều khiển bởi Haproxy, ví dụ cấu hình một tên miền ảo (chính file /etc/hosts (Linux, macoS) hoặc C:\Windows\System32\Drivers\etc\hosts (Windows), thêm vào tên miền ảo, giả sử phanhoaithu.test trỏ tới IP của một NODE nào đó
 
 172.16.10.102 phanhoaithu.test
 Giờ truy cập địa chỉ http://phanhoaithu.test sẽ thấy
 <img src="images/kubernetes049.png">
 Vì tên miền xuanthulab.test chưa được cấu hình đến dịch vụ cụ thể nào, nó đã chuyển traffic do service/ingress-default-backend phục vụ.
 
-# Tạo một Ingress
-Triển khai một ứng dụng (http) ví dụ
-kubectl apply -f 1.app-test.yaml
-
-File trên triển khai một ứng dụng từ image nginx, trong đó có tạo một service với tên http-test-svc để tương tác với các POD tạo ra.
-Giờ ta sẽ tạo một Ingress để điều hướng traffic (http, https) vào dịch vụ này.
-
+### Tạo một Ingress
+```bash
+# Triển khai một ứng dụng (http) ví dụ
+kubectl apply -f "ingress - HAProxy/1.app-test.yaml"
+```
+File trên triển khai một ứng dụng từ image `nginx`, trong đó có tạo một service với tên `http-test-svc` để tương tác với các POD tạo ra. Giờ ta sẽ tạo một Ingress để điều hướng traffic (http, https) vào dịch vụ này.
+```bash
 # Tạo Ingress
-kubectl apply -f 2.app-test-ingress.yaml
+kubectl apply -f "ingress - HAProxy/2.app-test-ingress.yaml"
+```
 Giờ kiểm truy cập lại sẽ thấy:
-<img src="images/kubernetes050.png">
+<img src="images/kubernetes050.png"></img>
 
-# Tạo một Ingress với cấu hình SSL
-Để cấu hình truy cập an toàn SSL, cần có các xác thực - các cert bạn mua, hoặc đăng ký miễn phí với https://letsencrypt.org/ cho tên miền cụ thể của bạn. Tuy nhiên để thực hành, sẽ sinh cert với openssl (tự xác thực - bị cảnh báo bởi trình duyệt).
-
-Chạy lệnh sau để sinh xác thực cho tên miền ảo xuanthulab.test:
+### Tạo một Ingress với cấu hình SSL
+Để cấu hình truy cập an toàn SSL, cần có các xác thực - các cert bạn mua, hoặc đăng ký miễn phí với https://letsencrypt.org/ cho tên miền cụ thể của bạn. Tuy nhiên để thực hành, sẽ sinh cert với `openssl` (tự xác thực - bị cảnh báo bởi trình duyệt).
+```bash
+# Chạy lệnh sau để sinh xác thực cho tên miền ảo xuanthulab.test:
 openssl req -x509 -newkey rsa:2048 -nodes -days 365 -keyout privkey.pem -out fullchain.pem -subj '/CN=xuanthulab.test'
 
-Sau đó tạo một Secret (thuộc namespace chạy POD), đặt tên Secret này là xuanthulab-test
+# Sau đó tạo một Secret (thuộc namespace chạy POD), đặt tên Secret này là xuanthulab-test
 kubectl create secret tls xuanthulab-test --cert=fullchain.pem --key=privkey.pem -n ingress-controller
 kubectl get secret -n ingress-controller
 
-Xóa đi Ingress cũ
-kubectl delete -f 2.app-test-ingress.yaml
-Tạo lại một Ingress có thiết lập xác thực SSL với cert trên:
-kubectl apply -f 3.app-test-ingress-ssl.yaml
-Giờ bạn đã có thể truy cập tới https://xuanthulab.test
+# Xóa đi Ingress cũ
+kubectl delete -f "ingress - HAProxy/2.app-test-ingress.yaml"
 
-# NGINX Kubernetes Ingress Controller 
-là một ingress hỗ trợ khả năng căn bằng tải, SSL, URI rewrite ...
+# Tạo lại một Ingress có thiết lập xác thực SSL với cert trên:
+kubectl apply -f "ingress - HAProxy/3.app-test-ingress-ssl.yaml"
+```
+Giờ đã có thể truy cập tới https://phanhoaithu.test
+
+### NGINX Kubernetes Ingress Controller 
+Là một ingress hỗ trợ khả năng căn bằng tải, SSL, URI rewrite...
 
 Ingress Controller được cung cấp bởi Nginx là một proxy nổi tiếng, mã nguồn của Nginx Ingress Controller trên github tại: [nginxinc/kubernetes-ingress](https://github.com/nginxinc/kubernetes-ingress)
-Hướng dẫn cài đặt cơ bản trên Document của nó tại: [installation-with-manifests](https://docs.nginx.com/nginx-ingress-controller/installation/installation-with-manifests/)
-<img src="images/kubernetes057.png">
 
-# Cài đặt NGINX Ingress Controller
-Xóa ingress-controller đã cài ở bước trước: kubectl delete ns ingress-controller
-Từ tài liệu hướng dẫn, sẽ triển khai Nginx Ingress Controller bằng cách triển khai các manifest (yaml) từ mã nguồn tại nginxinc/kubernetes-ingress:
+Hướng dẫn cài đặt cơ bản trên Document của nó tại: [installation-with-manifests](https://docs.nginx.com/nginx-ingress-controller/installation/installation-with-manifests/)
+<img src="images/kubernetes057.png"></img>
+
+### Cài đặt NGINX Ingress Controller
 ```bash
+# Xóa ingress-controller đã cài ở bước trước: 
+kubectl delete ns ingress-controller
+
+# triển khai Nginx Ingress Controller bằng cách triển khai các manifest (yaml) từ mã nguồn tại nginxinc/kubernetes-ingress:
 git clone git@github.com:nginxinc/kubernetes-ingress.git
-# vào thư mục tải về
 cd kubernetes-ingress
 cd deployments
-```
-Sau đó triển khai bằng các lệnh sau:
 
 kubectl apply -f common/ns-and-sa.yaml
 kubectl apply -f common/default-server-secret.yaml
 kubectl apply -f common/nginx-config.yaml
 kubectl apply -f rbac/rbac.yaml
 kubectl apply -f daemon-set/nginx-ingress.yaml
-Kiểm tra daemonset và các pod của Nginx Ingress Controller
+
+# Kiểm tra daemonset và các pod của Nginx Ingress Controller
 
 kubectl get ds -n nginx-ingress
 kubectl get po -n nginx-ingress
+```
 <img src="images/kubernetes058.png">
 
-# Ví dụ tạo Ingress
+### Ví dụ tạo Ingress
 Triển khai lại các vị dụ có trong phần Ví dụIngress Haproxy, nhưng chỉnh sửa lại một chút để dùng Nginx Ingress Controller
 kubectl  apply -f 1.app-test.yaml
 Tạo Ingress, chuyển hướng truy vấn vào ứng dụng trên khi truy cập bằng tên miền xuanthulab.test với giao thức http
@@ -716,3 +718,6 @@ kubectl logs -f -l 'name=flux' -n flux --tail=200
 kubectl get deploy -n monitoring prometheus-operator-kube-state-metrics -o yaml > prometheus-operator-kube-state-metrics.yaml
 
 kubectl edit deploy -n monitoring prometheus-operator-kube-state-metrics -o yaml
+
+check outdated images
+kubectl community-images | grep '❌'
