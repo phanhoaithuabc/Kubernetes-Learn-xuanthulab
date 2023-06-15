@@ -662,62 +662,51 @@ kubectl apply -f daemon-set/nginx-ingress.yaml
 kubectl get ds -n nginx-ingress
 kubectl get po -n nginx-ingress
 ```
-<img src="images/kubernetes058.png">
+<img src="images/kubernetes058.png"></img>
 
 ### Ví dụ tạo Ingress
-Triển khai lại các vị dụ có trong phần Ví dụIngress Haproxy, nhưng chỉnh sửa lại một chút để dùng Nginx Ingress Controller
-kubectl  apply -f 1.app-test.yaml
-Tạo Ingress, chuyển hướng truy vấn vào ứng dụng trên khi truy cập bằng tên miền xuanthulab.test với giao thức http
-kubectl apply -f 2.app-test-ingress.yaml
+```bash
+# Triển khai lại các vị dụ có trong phần Ví dụ Ingress Haproxy, nhưng chỉnh sửa lại một chút để dùng Nginx Ingress Controller
+kubectl  apply -f "ingress - Nginx/1.app-test.yaml"
 
+# Tạo Ingress, chuyển hướng truy vấn vào ứng dụng trên khi truy cập bằng tên miền xuanthulab.test với giao thức http
+kubectl apply -f "ingress - Nginx/2.app-test-ingress.yaml"
+```
 Hãy truy cập và kiểm tra từ trình duyệt đến địa chỉ http://xuanthulab.test
 
-Triển khai SSL truy cập bằng https, ở đây sử dụng chính các xác thực lưu trong Secret có tên default-server-secret, đi kèm Nginx Ingress Controller (hoặc tự tạo theo ví dụ trước).
-<img src="images/kubernetes058.png">
-# Giới thiệu và cài đặt Rancher 2
-Rancher 2.x là công cụ nguồn mở, giao diện nền web, để quản lý Kubernetes Cluster, triển khai ứng dụng trên Kubernetes cho dù Cluster của bạn chạy ở đâu, cung cấp bởi dịch vụ nào (AWS, GCP, Azure ...). Từ một Server cài đặt Rancher bạn có thể quản lý một hay nhiều Kubernetes Cluster trên cùng một giao diện.
+Triển khai SSL truy cập bằng https, ở đây sử dụng chính các xác thực lưu trong Secret có tên `default-server-secret`, đi kèm Nginx Ingress Controller (hoặc tự tạo theo ví dụ trước).
+<img src="images/kubernetes058.png"></img>
 
-Rancher 2.x cho phép bạn theo dõi, giám sát tình trạng của Kubernetes Cluster, nhận các cảnh bảo về sử dụng tài nguyên ...
+## Giới thiệu và cài đặt Rancher 2
+`Rancher 2.x` là công cụ nguồn mở, giao diện nền web, để quản lý Kubernetes Cluster, triển khai ứng dụng trên Kubernetes cho dù Cluster của bạn chạy ở đâu, cung cấp bởi dịch vụ nào (AWS, GCP, Azure...). Từ một Server cài đặt Rancher bạn có thể quản lý một hay nhiều Kubernetes Cluster trên cùng một giao diện.
+
+`Rancher 2.x` cho phép bạn theo dõi, giám sát tình trạng của Kubernetes Cluster, nhận các cảnh bảo về sử dụng tài nguyên...
 
 Để triển khai Rancher, bạn cần cài đặt Rancher trên một Server: gọi là Server Rancher, cần đảm bảo địa chỉ IP của Server Rancher và các Node của Kubernetes Cluster cần quản lý liên lạc mạng được với nhau!
 
-Để nhanh chóng, có thể triển khai Rancher từ một Docker Host. Ở đây sử dụng lại Kubernetes Cluster có 3 node từ các ví dụ trước và Rancher Server sẽ triển khai chạy trên Docker của máy ảo có địa chỉ IP 172.16.10.103
-
-Triển khai Rancher: SSH vào máy 172.16.10.103 (CentOS 7, đã có docker) và thực hiện lệnh:
-
+Để nhanh chóng, có thể triển khai Rancher từ một Docker Host. Ở đây sử dụng lại Kubernetes Cluster có 3 node từ các ví dụ trước và `Rancher Server` sẽ triển khai chạy trên Docker của máy ảo có địa chỉ IP `172.16.10.103`
+```bash
+# Triển khai Rancher: SSH vào máy 172.16.10.103 (CentOS 7, đã có docker) và thực hiện lệnh:
 docker run -d --restart=unless-stopped \
     -p 80:80 -p 443:443 \
     rancher/rancher:latest
-Trong trường hợp muốn lưu dữ liệu lâu dài, có thể mount ổ đĩa vào đường đường dẫn /var/lib/rancher
 
+# Trong trường hợp muốn lưu dữ liệu lâu dài, có thể mount ổ đĩa vào đường đường dẫn /var/lib/rancher
 docker run -d --restart=unless-stopped \
     -p 80:80 -p 443:443 \
     -v /opt/rancher:/var/lib/rancher \
     rancher/rancher:latest
+``` 
 Sau khi triển khai, truy cập vào địa chỉ https://172.16.10.103, màn hình đầu tiên nó yêu cầu bạn thiết lập password có user admin
-<img src="images/kubernetes060.png">
+<img src="images/kubernetes060.png"></img>
 Sau khi thiết lập password, màn hình tiếp theo yêu cầu thiết lập địa chỉ URL của Server Rancher, bạn hãy điền bằng IP của máy HOST chạy Docker, ví dụ https://192.168.1.5:444 (sau này truy cập vào Rancher bằng địa chỉ này)
-<img src="images/kubernetes061.png">
+<img src="images/kubernetes061.png"></img>
 Cuối cùng giao diện có dạng sau:
-<img src="images/kubernetes062.png">
+<img src="images/kubernetes062.png"></img>
 
-# Thêm Cluster cần quản lý vào Rancher 2
-
+### Thêm Cluster cần quản lý vào Rancher 2
 Trước khi thêm cần đảm bảo tất cả các node của Cluster đều có thể kết nối mạng được đến Server Rancher
 
-Từ Rancher, chọn Clusters > Add Cluster, màn hình xuất hiện như dưới. Tùy thuộc vào Cluster triển khai từ dịch vụ nào thì chọn mục tương ứng, ví dụ Amazon EC2, Azure, GKE ..., với Cluster đã triển khai trên, sẽ chọn Import an existing cluster
+Từ Rancher, chọn `Clusters > Add Cluster`, màn hình xuất hiện như dưới. Tùy thuộc vào Cluster triển khai từ dịch vụ nào thì chọn mục tương ứng, ví dụ Amazon EC2, Azure, GKE... với Cluster đã triển khai trên, sẽ chọn import an existing cluster
 <img src="images/kubernetes063.png">
 Cuối cùng là màn hình nó cung cấp các mã lệnh cần thực hiện tại Cluster bằng lệnh kubectl để kết nối.
-
-ssh into flux pod to edit ssh known host (/etc/ssh/ssh_known_host)
-kubectl exec -it flux-58c6c74ff6-dphfq -n flux bash
-
-explore log of flux namespace
-kubectl logs -f -l 'name=flux' -n flux --tail=200
-
-kubectl get deploy -n monitoring prometheus-operator-kube-state-metrics -o yaml > prometheus-operator-kube-state-metrics.yaml
-
-kubectl edit deploy -n monitoring prometheus-operator-kube-state-metrics -o yaml
-
-check outdated images
-kubectl community-images | grep '❌'
