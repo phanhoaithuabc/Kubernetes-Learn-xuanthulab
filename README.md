@@ -184,8 +184,9 @@ kubectl get event/ev
 kubectl edit po/ungdung1
 ```
 > Mặc định Kubernetes không tạo và chạy POD ở Node Master để đảm bảo yêu cầu an toàn, nếu vẫn muốn chạy POD ở Master thi hành lệnh sau:
+```bash
 kubectl taint nodes --all node-role.kubernetes.io/master-
-
+```
 > Truy cập Pod từ bên ngoài Cluster (Kiểm tra - Debug). Trong thông tin của Pod ta thấy có IP của Pod và cổng lắng nghe, tuy nhiên Ip này là nội bộ, chỉ các Pod trong Cluster liên lạc với nhau. Nếu bên ngoài muốn truy cập cần tạo một Service để chuyển traffic bên ngoài vào Pod (tìm hiểu sau), tại đây để debug - truy cập kiểm tra bằng cách chạy proxy:
   ```bash
   kubectl proxy
@@ -197,11 +198,11 @@ kubectl taint nodes --all node-role.kubernetes.io/master-
   kubectl port-forward mypod 8080:8085
   ```
 ## Disk / Volume in POD
-Để thêm các Volume đầu tiên cần định nghĩa ổ đĩa ở trường spec.volumes. Tại mỗi container gắn ổ đĩa vào nếu cần với thuộc tính volumeMounts
+Để thêm các Volume đầu tiên cần định nghĩa ổ đĩa ở trường `spec.volumes`. Tại mỗi container gắn ổ đĩa vào nếu cần với thuộc tính `volumeMounts`
 Nếu muốn sử dụng ổ đĩa - giống nhau về dữ liệu trên nhiều POD, kể cả các POD đó chạy trên các máy khác nhau thì cần dùng các loại đĩa Remote - ví dụ NFS
 
 Cấu hình thăm dò Container còn sống
-Bạn có thể cấu hình livenessProbe cho mỗi container, để Kubernetes kiểm tra xem container còn sống không. Ví dụ, đường dẫn kiểm tra là /healthycheck, nếu nó trả về mã header trong khoảng 200 đến 400 được coi là sống (tất nhiên bạn cần viết ứng dụng trả về mã này). Trong đó cứ 10s kiểm tra một lần
+Bạn có thể cấu hình `livenessProbe` cho mỗi container, để Kubernetes kiểm tra xem container còn sống không. Ví dụ, đường dẫn kiểm tra là `/healthycheck`, nếu nó trả về mã header trong khoảng 200 đến 400 được coi là sống (tất nhiên bạn cần viết ứng dụng trả về mã này). Trong đó cứ 10s kiểm tra một lần
 ```yaml
 apiVersion: v1
 kind: Pod
